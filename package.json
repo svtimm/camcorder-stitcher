@@ -4,6 +4,7 @@
   "description": "CLI that detects camcorder clips split by file-size limits and stitches each session back into one continuous video.",
   "type": "module",
   "license": "Apache-2.0",
+  "packageManager": "pnpm@10.33.0",
   "bin": {
     "camcorder-stitcher": "./dist/cli.js"
   },
@@ -34,5 +35,10 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

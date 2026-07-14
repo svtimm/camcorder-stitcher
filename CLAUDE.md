@@ -11,14 +11,24 @@ recording session back into one continuous file via `ffmpeg`. See
 
 ## Commands
 
-- `npm run build` — compile `src/` to `dist/` (`tsc -p tsconfig.json`)
-- `npm run dev -- <dir> [flags]` — run the CLI from source via `tsx`, no build step
-- `npm test` — run the full Vitest suite once
-- `npm run test:watch` — Vitest in watch mode
-- Single test file: `npx vitest run test/group.test.ts`
-- Single test by name: `npx vitest run -t "splits a session when"`
-- `npm run lint` — ESLint (flat config in `eslint.config.js`)
-- `npm run typecheck` — `tsc --noEmit` against `tsconfig.json` (covers `src` **and** `test`)
+This project uses **pnpm** (pinned via `packageManager` in `package.json`;
+`corepack enable` picks up the right version automatically) — not npm or
+yarn. Always install with `pnpm install`, which produces `pnpm-lock.yaml`;
+don't run plain `npm install` here, it would generate a conflicting
+`package-lock.json`.
+
+- `pnpm install` — install dependencies
+- `pnpm run build` — compile `src/` to `dist/` (`tsc -p tsconfig.build.json`)
+- `pnpm run dev <dir> [flags]` — run the CLI from source via `tsx`, no build step.
+  Pass args directly with no `--` separator — pnpm (unlike npm) forwards a
+  literal `--` token into the invoked command, which commander misparses as
+  "end of options", swallowing subsequent flags like `--dry-run` as positionals.
+- `pnpm test` — run the full Vitest suite once
+- `pnpm run test:watch` — Vitest in watch mode
+- Single test file: `pnpm exec vitest run test/group.test.ts`
+- Single test by name: `pnpm exec vitest run -t "splits a session when"`
+- `pnpm run lint` — ESLint (flat config in `eslint.config.js`)
+- `pnpm run typecheck` — `tsc --noEmit` against `tsconfig.json` (covers `src` **and** `test`)
 
 `ffmpeg` must be installed and on `PATH` to actually stitch files; it is not
 bundled as an npm dependency (macOS: `brew install ffmpeg`). Grouping/
@@ -32,10 +42,10 @@ silently otherwise (e.g. in this sandbox).
 ### Two tsconfigs, on purpose
 
 `tsconfig.json` is the "typecheck everything" config (`noEmit: true`,
-includes `src` + `test`) — both `npm run typecheck` and editor tooling use
+includes `src` + `test`) — both `pnpm run typecheck` and editor tooling use
 it. `tsconfig.build.json` extends it and narrows `include` to `src` only,
 turning emission back on with `rootDir`/`outDir`/`declaration` set, for
-`npm run build`. Don't merge these back into one config: doing so either
+`pnpm run build`. Don't merge these back into one config: doing so either
 stops `test/` from being typechecked or leaks compiled test files into
 `dist/`.
 

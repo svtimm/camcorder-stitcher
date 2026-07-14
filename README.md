@@ -13,6 +13,7 @@ into a single output file with `ffmpeg`.
 ## Requirements
 
 - Node.js 20+
+- pnpm (see `packageManager` in `package.json` for the version; `corepack enable` will pick it up automatically)
 - `ffmpeg` available on your `PATH`
 
 On macOS, install ffmpeg with Homebrew:
@@ -24,8 +25,8 @@ brew install ffmpeg
 ## Install
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ## Usage
@@ -44,8 +45,12 @@ node dist/cli.js /path/to/clips --output-dir ./out --max-gap-seconds 60
 During development you can skip the build step with:
 
 ```bash
-npm run dev -- /path/to/clips --dry-run
+pnpm run dev /path/to/clips --dry-run
 ```
+
+Note: pass args to `pnpm run dev` directly, without a `--` separator — unlike
+npm, pnpm forwards a literal `--` token into the command, which confuses
+commander's argument parsing.
 
 ## How grouping works
 
