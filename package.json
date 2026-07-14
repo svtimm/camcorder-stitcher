@@ -1,0 +1,38 @@
+{
+  "name": "camcorder-stitcher",
+  "version": "0.1.0",
+  "description": "CLI that detects camcorder clips split by file-size limits and stitches each session back into one continuous video.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "camcorder-stitcher": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "fluent-ffmpeg": "^2.1.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/fluent-ffmpeg": "^2.1.27",
+    "@types/node": "^22.9.0",
+    "eslint": "^10.7.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^4.1.10"
+  }
+}
