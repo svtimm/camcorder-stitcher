@@ -15,6 +15,12 @@ into a single output file with `ffmpeg`.
 - Node.js 20+
 - `ffmpeg` available on your `PATH`
 
+On macOS, install ffmpeg with Homebrew:
+
+```bash
+brew install ffmpeg
+```
+
 ## Install
 
 ```bash

@@ -18,11 +18,26 @@ recording session back into one continuous file via `ffmpeg`. See
 - Single test file: `npx vitest run test/group.test.ts`
 - Single test by name: `npx vitest run -t "splits a session when"`
 - `npm run lint` — ESLint (flat config in `eslint.config.js`)
-- `npm run typecheck` — `tsc --noEmit`
+- `npm run typecheck` — `tsc --noEmit` against `tsconfig.json` (covers `src` **and** `test`)
 
 `ffmpeg` must be installed and on `PATH` to actually stitch files; it is not
-bundled as an npm dependency. Grouping/discovery logic has no runtime
-dependency on ffmpeg being present, so it stays unit-testable without it.
+bundled as an npm dependency (macOS: `brew install ffmpeg`). Grouping/
+discovery logic has no runtime dependency on ffmpeg being present, so it
+stays unit-testable without it. `test/stitch.integration.test.ts` does
+exercise real ffmpeg (generates tiny clips with `ffmpeg -f lavfi` and stitches
+them) but self-skips via `describe.skipIf` when `ffmpeg` isn't on `PATH` —
+expect it to run in CI and on any machine with ffmpeg installed, and to skip
+silently otherwise (e.g. in this sandbox).
+
+### Two tsconfigs, on purpose
+
+`tsconfig.json` is the "typecheck everything" config (`noEmit: true`,
+includes `src` + `test`) — both `npm run typecheck` and editor tooling use
+it. `tsconfig.build.json` extends it and narrows `include` to `src` only,
+turning emission back on with `rootDir`/`outDir`/`declaration` set, for
+`npm run build`. Don't merge these back into one config: doing so either
+stops `test/` from being typechecked or leaks compiled test files into
+`dist/`.
 
 ## Architecture
 
@@ -67,3 +82,16 @@ boundary rules can be tested with fabricated `ClipFile` objects (see
 `test/group.test.ts`) instead of real files and real time gaps. Keep any
 new grouping heuristic in that function signature-compatible and free of
 I/O so this stays true.
+
+## Cross-platform notes
+
+CI (`.github/workflows/ci.yml`) runs the full pipeline (typecheck, lint,
+test, build) on both `ubuntu-latest` and `macos-latest` for every push/PR —
+that's the real signal for "does this work on Mac", not local assumptions.
+The codebase itself has no platform-specific branches (no `process.platform`
+checks, no hardcoded path separators); all path/temp-dir/fs work goes
+through `node:path`, `node:os`, and `node:fs/promises`, and extension/prefix
+matching in `discover.ts`/`group.ts` is lower-cased so it's stable across
+case-insensitive (macOS/Windows) and case-sensitive (Linux) filesystems. If
+you add anything that shells out or touches paths directly, keep it that
+way rather than assuming POSIX-only behavior.
