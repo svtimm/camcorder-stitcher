@@ -105,3 +105,13 @@ matching in `discover.ts`/`group.ts` is lower-cased so it's stable across
 case-insensitive (macOS/Windows) and case-sensitive (Linux) filesystems. If
 you add anything that shells out or touches paths directly, keep it that
 way rather than assuming POSIX-only behavior.
+
+This same portability is why nothing in `discover.ts`/`stitch.ts` needs to
+change to point `<dir>` at a locally-synced cloud folder (Google Drive for
+Desktop, rclone mount, etc.) instead of a physical drive — it's just
+another directory as far as `readdir`/`stat`/ffmpeg are concerned. The one
+thing that *does* travel with the storage backend is mtime trustworthiness:
+`groupClips`'s gap heuristic (see above) is only as good as the mtimes it's
+handed, and a sync client may or may not preserve a clip's original
+recording mtime through upload/sync. See the "cloud-synced folder" section
+in `README.md` for the user-facing caveat.

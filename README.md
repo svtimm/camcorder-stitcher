@@ -68,3 +68,29 @@ Stitching uses ffmpeg's concat demuxer with stream copy (`-c copy`), so it
 only produces clean output when all clips in a session share the same
 codec/format — true for clips split by a camcorder's own file-size limit,
 not for arbitrary unrelated videos.
+
+## Using a cloud-synced folder (Google Drive, Dropbox, etc.)
+
+This works the same as any local directory — point `<dir>` at wherever your
+sync client (Google Drive for Desktop, rclone mount, etc.) exposes "My
+Drive" on disk, e.g.:
+
+```bash
+node dist/cli.js "/Users/you/Google Drive/My Drive/Camcorder Footage" --dry-run
+```
+
+Two things to double check for a synced folder specifically:
+
+- **File timestamps.** Grouping relies on each clip's mtime to detect gaps
+  between recording sessions. Whether a synced copy preserves the clip's
+  *original* mtime, or resets it to sync/upload time, depends on how the
+  files got into Drive in the first place. Always run `--dry-run` first,
+  and if the detected sessions look wrong, check a clip's actual mtime
+  (`ls -l` / `stat`) against when it was really recorded.
+- **On-demand download.** In Google Drive for Desktop's "Stream" mode,
+  files are placeholders fetched on access — reading them still works, but
+  can be slow or fail without a network connection.
+
+Also consider pointing `--output-dir` somewhere outside the synced folder,
+so stitched output doesn't get re-uploaded through Drive unless you want
+it to.
