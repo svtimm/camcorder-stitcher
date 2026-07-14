@@ -94,3 +94,72 @@ Two things to double check for a synced folder specifically:
 Also consider pointing `--output-dir` somewhere outside the synced folder,
 so stitched output doesn't get re-uploaded through Drive unless you want
 it to.
+
+## Uploading to YouTube (optional)
+
+Omit `--titles` and nothing about uploading applies — the tool behaves
+exactly as described above. Passing `--titles <file>` additionally uploads
+whichever multi-clip sessions appear in that file to YouTube right after
+stitching them.
+
+### One-time setup
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create
+   (or pick) a project and enable the **YouTube Data API v3**.
+2. Configure the OAuth consent screen (External is fine for personal use —
+   add your own Google account as a test user).
+3. Create an **OAuth client ID** of type **Desktop app**, then download its
+   JSON.
+4. Save it as `~/.config/camcorder-stitcher/client_secret.json` (the
+   default the tool looks for), or pass `--client-secret <path>` to point
+   elsewhere.
+
+The first upload run opens a consent URL for you to visit in a browser and
+captures the redirect automatically on a local, loopback-only server; the
+resulting token is cached in `~/.config/camcorder-stitcher/youtube-token.json`
+so you won't be asked again on later runs.
+
+### Preparing titles ahead of time
+
+Run `--dry-run` first to see the session ids the tool detects:
+
+```bash
+node dist/cli.js /path/to/clips --dry-run
+# Session "mov001" (3 clip(s)): MOV001.MP4, MOV002.MP4, MOV003.MP4
+```
+
+Then write a JSON file mapping each session id you want uploaded to its
+metadata:
+
+```json
+{
+  "mov001": {
+    "title": "Beach Day 2024",
+    "description": "Family trip to the beach",
+    "tags": ["family", "beach"],
+    "privacyStatus": "unlisted"
+  }
+}
+```
+
+Only `title` is required. `privacyStatus` (`private` | `unlisted` | `public`)
+defaults to `--privacy-status` (itself defaulting to `unlisted`) when
+omitted. Sessions the tool detects but that aren't in this file are still
+stitched locally — they're just skipped for upload, with a console note.
+
+You can preview what would be uploaded, with no network calls and no
+stitching, by combining both flags:
+
+```bash
+node dist/cli.js /path/to/clips --dry-run --titles titles.json
+```
+
+Then run for real:
+
+```bash
+node dist/cli.js /path/to/clips --titles titles.json
+```
+
+Note: if the process is interrupted partway through a batch, already-
+uploaded sessions aren't tracked — re-running will stitch and attempt to
+upload every session in the titles file again.

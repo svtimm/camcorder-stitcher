@@ -33,3 +33,26 @@ export interface GroupOptions {
    */
   maxGapSeconds: number;
 }
+
+export type PrivacyStatus = "private" | "unlisted" | "public";
+
+export interface TitleMapEntry {
+  title: string;
+  description?: string;
+  tags?: string[];
+  privacyStatus?: PrivacyStatus;
+}
+
+/** Maps a `Session.id` to the metadata that should be used to upload it. */
+export type TitleMap = Record<string, TitleMapEntry>;
+
+export interface VideoMetadata {
+  snippet: {
+    title: string;
+    description?: string;
+    tags?: string[];
+  };
+  status: {
+    privacyStatus: PrivacyStatus;
+  };
+}

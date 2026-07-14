@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Node.js/TypeScript CLI that detects camcorder clips split by file-size
 limits (e.g. `MOV001.MP4`, `MOV002.MP4`, `MOV003.MP4`) and stitches each
-recording session back into one continuous file via `ffmpeg`. See
-`README.md` for user-facing usage.
+recording session back into one continuous file via `ffmpeg`, with an
+optional follow-up step to upload the results to YouTube. See `README.md`
+for user-facing usage.
 
 ## Commands
 
@@ -84,6 +85,45 @@ The pipeline is three pure-ish stages wired together by `src/cli.ts`:
 `src/cli.ts` wires these together with `commander` and is the only place
 that touches `process.exitCode`/stdout formatting. `src/index.ts` re-exports
 the same pieces for programmatic/library use.
+
+### Optional fourth stage: YouTube upload
+
+`--titles <path>` is what opts a run into uploading — there's no separate
+`--upload` boolean, and its complete absence means zero behavior change
+from the base three-stage pipeline (no network, no Google/OAuth code
+touched at all). Two new modules back this, split the same
+pure-vs-I/O way as `stitch.ts`:
+
+- **`src/titles.ts`** (`loadTitleMap`/`parseTitleMap`) — reads and validates
+  the JSON file mapping `Session.id` -> `{ title, description?, tags?,
+  privacyStatus? }`. `parseTitleMap` is the pure half (string in, validated
+  `TitleMap` out or throws) and is what `test/titles.test.ts` exercises.
+- **`src/youtube.ts`** — `buildVideoMetadata` (pure: entry + default
+  privacy status -> the API request body, unit tested) versus
+  `getAuthorizedClient`/`uploadVideo` (I/O: OAuth "installed app" consent
+  flow over a short-lived loopback HTTP server, credential caching under
+  `~/.config/camcorder-stitcher/`, and the actual `videos.insert` call).
+  There is deliberately **no automated test for real uploads** — unlike
+  the ffmpeg integration test, which can at least self-skip against a
+  locally-installed binary, a real YouTube upload needs a live Google
+  account and burns real quota, so it can't be faked or skipped its way
+  into CI. `test/youtube.test.ts` only covers `buildVideoMetadata`.
+
+`src/cli.ts`'s action loads and validates the title map (if `--titles` was
+passed) before doing any stitching, so a malformed titles file fails fast
+instead of partway through a batch. Uses the minimal
+`youtube.upload` OAuth scope rather than the broader `youtube` scope.
+
+One version-pinning detail worth knowing before touching dependencies:
+`google-auth-library` is pinned to the *exact* version (`10.5.0`, not
+`^10.5.0`) that `@googleapis/youtube`'s `googleapis-common` dependency
+pins internally. Without that exact match, pnpm resolves two separate
+`OAuth2Client` class instances and passing our client into
+`youtube({auth})` becomes a TypeScript structural-typing error. If bumping
+`@googleapis/youtube` ever changes which `google-auth-library` version
+`googleapis-common` wants, re-pin this dependency to match it exactly
+(check via `pnpm why google-auth-library` — it should report exactly one
+resolved version).
 
 ### Key invariant when changing grouping logic
 
