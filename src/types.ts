@@ -41,6 +41,8 @@ export interface TitleMapEntry {
   description?: string;
   tags?: string[];
   privacyStatus?: PrivacyStatus;
+  /** YouTube playlist id this video should be added to after upload. */
+  playlistId?: string;
 }
 
 /** Maps a `Session.id` to the metadata that should be used to upload it. */

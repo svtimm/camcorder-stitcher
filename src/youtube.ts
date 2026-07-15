@@ -8,7 +8,11 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { PrivacyStatus, TitleMapEntry, VideoMetadata } from "./types.js";
 
-const YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload";
+export const YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload";
+// playlistItems.insert doesn't accept youtube.upload; force-ssl is the
+// narrowest scope Google's own API docs list that covers both playlist
+// writes and (per videos.insert's documented scopes) uploads too.
+export const YOUTUBE_PLAYLIST_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
 const CONSENT_TIMEOUT_MS = 5 * 60 * 1000;
 
 export function defaultConfigDir(): string {
@@ -78,7 +82,7 @@ async function saveCredentials(tokenPath: string, credentials: Credentials): Pro
  * prints a consent URL, waits for the browser redirect on a short-lived
  * 127.0.0.1-only HTTP server, then exchanges the code for tokens.
  */
-async function runConsentFlow(client: OAuth2Client): Promise<void> {
+async function runConsentFlow(client: OAuth2Client, scopes: string[]): Promise<void> {
   const server = createServer();
 
   const port = await new Promise<number>((resolve, reject) => {
@@ -96,7 +100,7 @@ async function runConsentFlow(client: OAuth2Client): Promise<void> {
   const redirectUri = `http://127.0.0.1:${port}`;
   const authUrl = client.generateAuthUrl({
     access_type: "offline",
-    scope: [YOUTUBE_UPLOAD_SCOPE],
+    scope: scopes,
     redirect_uri: redirectUri,
   });
 
@@ -142,12 +146,24 @@ async function runConsentFlow(client: OAuth2Client): Promise<void> {
 export interface AuthorizeOptions {
   clientSecretPath: string;
   tokenPath?: string;
+  /** OAuth scopes this run needs; a cached token missing any is re-consented. */
+  scopes: string[];
+}
+
+function hasRequiredScopes(grantedScope: string | null | undefined, required: string[]): boolean {
+  if (!grantedScope) {
+    return false;
+  }
+  const granted = new Set(grantedScope.split(" "));
+  return required.every((scope) => granted.has(scope));
 }
 
 /**
- * Returns an OAuth2Client authorized for the `youtube.upload` scope,
- * reusing a cached refresh token from a previous run when available and
- * otherwise running the interactive consent flow once.
+ * Returns an OAuth2Client authorized for the requested scopes, reusing a
+ * cached refresh token from a previous run when it already covers those
+ * scopes, and otherwise running the interactive consent flow (which
+ * transparently widens a previously-narrower grant, e.g. adding playlist
+ * access on top of an existing upload-only token).
  */
 export async function getAuthorizedClient(options: AuthorizeOptions): Promise<OAuth2Client> {
   const tokenPath = options.tokenPath ?? join(defaultConfigDir(), "youtube-token.json");
@@ -156,10 +172,12 @@ export async function getAuthorizedClient(options: AuthorizeOptions): Promise<OA
   const client = new OAuth2Client({ clientId, clientSecret });
 
   const cached = await loadCachedCredentials(tokenPath);
-  if (cached?.refresh_token) {
+  const cachedIsSufficient = Boolean(cached?.refresh_token) && hasRequiredScopes(cached?.scope, options.scopes);
+
+  if (cachedIsSufficient && cached) {
     client.setCredentials(cached);
   } else {
-    await runConsentFlow(client);
+    await runConsentFlow(client, options.scopes);
     await saveCredentials(tokenPath, client.credentials);
   }
 
@@ -200,4 +218,25 @@ export async function uploadVideo(
     throw new Error("YouTube upload succeeded but the response had no video id");
   }
   return { videoId, url: `https://youtu.be/${videoId}` };
+}
+
+/**
+ * Adds an already-uploaded video to a playlist. Not covered by automated
+ * tests, same reasoning as `uploadVideo` — needs a live account/quota.
+ */
+export async function addVideoToPlaylist(
+  auth: OAuth2Client,
+  playlistId: string,
+  videoId: string,
+): Promise<void> {
+  const youtube = youtubeClient({ version: "v3", auth });
+  await youtube.playlistItems.insert({
+    part: ["snippet"],
+    requestBody: {
+      snippet: {
+        playlistId,
+        resourceId: { kind: "youtube#video", videoId },
+      },
+    },
+  });
 }

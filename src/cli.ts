@@ -5,8 +5,16 @@ import { discoverClips } from "./discover.js";
 import { DEFAULT_MAX_GAP_SECONDS, groupClips } from "./group.js";
 import { stitchSession } from "./stitch.js";
 import { loadTitleMap } from "./titles.js";
-import type { PrivacyStatus } from "./types.js";
-import { buildVideoMetadata, defaultConfigDir, getAuthorizedClient, uploadVideo } from "./youtube.js";
+import type { PrivacyStatus, TitleMap } from "./types.js";
+import {
+  addVideoToPlaylist,
+  buildVideoMetadata,
+  defaultConfigDir,
+  getAuthorizedClient,
+  uploadVideo,
+  YOUTUBE_PLAYLIST_SCOPE,
+  YOUTUBE_UPLOAD_SCOPE,
+} from "./youtube.js";
 
 const PRIVACY_STATUSES: readonly PrivacyStatus[] = ["private", "unlisted", "public"];
 
@@ -15,6 +23,18 @@ function parsePrivacyStatus(value: string): PrivacyStatus {
     throw new InvalidArgumentError(`must be one of ${PRIVACY_STATUSES.join(", ")}`);
   }
   return value as PrivacyStatus;
+}
+
+function resolvePlaylistId(entry: TitleMap[string], defaultPlaylistId?: string): string | undefined {
+  return entry.playlistId ?? defaultPlaylistId;
+}
+
+/** Only requests the broader playlist scope when a run actually uses one. */
+function computeRequiredScopes(titleMap: TitleMap | null, defaultPlaylistId?: string): string[] {
+  const usesPlaylist =
+    Boolean(defaultPlaylistId) ||
+    (titleMap !== null && Object.values(titleMap).some((entry) => entry.playlistId !== undefined));
+  return usesPlaylist ? [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_PLAYLIST_SCOPE] : [YOUTUBE_UPLOAD_SCOPE];
 }
 
 const program = new Command();
@@ -49,6 +69,10 @@ program
     "path to a Google OAuth 'Desktop app' client secret JSON",
     join(defaultConfigDir(), "client_secret.json"),
   )
+  .option(
+    "--playlist <id>",
+    "default YouTube playlist id to add uploaded videos to (overridable per session in --titles)",
+  )
   .action(async (dir: string, opts) => {
     const clips = await discoverClips(dir);
     if (clips.length === 0) {
@@ -70,10 +94,15 @@ program
       if (titleMap) {
         for (const session of sessions.filter((s) => s.clips.length > 1)) {
           const entry = titleMap[session.id];
+          if (!entry) {
+            console.log(`  -> "${session.id}" not in titles file, would be skipped`);
+            continue;
+          }
+          const playlistId = resolvePlaylistId(entry, opts.playlist);
+          const playlistNote = playlistId ? `, added to playlist "${playlistId}"` : "";
           console.log(
-            entry
-              ? `  -> would upload "${session.id}" as "${entry.title}" (${entry.privacyStatus ?? opts.privacyStatus})`
-              : `  -> "${session.id}" not in titles file, would be skipped`,
+            `  -> would upload "${session.id}" as "${entry.title}" ` +
+              `(${entry.privacyStatus ?? opts.privacyStatus})${playlistNote}`,
           );
         }
       }
@@ -90,6 +119,7 @@ program
     await mkdir(opts.outputDir, { recursive: true });
 
     let auth: Awaited<ReturnType<typeof getAuthorizedClient>> | null = null;
+    const scopes = computeRequiredScopes(titleMap, opts.playlist);
 
     for (const session of multiClipSessions) {
       const ext = extname(session.clips[0]!.name) || ".mp4";
@@ -107,14 +137,32 @@ program
         continue;
       }
 
-      auth ??= await getAuthorizedClient({ clientSecretPath: opts.clientSecret });
+      auth ??= await getAuthorizedClient({ clientSecretPath: opts.clientSecret, scopes });
       const metadata = buildVideoMetadata(entry, opts.privacyStatus);
+
+      let videoId: string;
       try {
         const result = await uploadVideo(auth, outputPath, metadata);
+        videoId = result.videoId;
         console.log(`  -> uploaded "${session.id}" as "${entry.title}": ${result.url}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`  -> failed to upload "${session.id}": ${message}`);
+        continue;
+      }
+
+      const playlistId = resolvePlaylistId(entry, opts.playlist);
+      if (!playlistId) {
+        continue;
+      }
+      try {
+        await addVideoToPlaylist(auth, playlistId, videoId);
+        console.log(`  -> added "${session.id}" to playlist "${playlistId}"`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(
+          `  -> uploaded "${session.id}" but failed to add it to playlist "${playlistId}": ${message}`,
+        );
       }
     }
   });

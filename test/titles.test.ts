@@ -9,6 +9,7 @@ describe("parseTitleMap", () => {
         description: "Family trip to the beach",
         tags: ["family", "beach"],
         privacyStatus: "public",
+        playlistId: "PL1234567890",
       },
       mvi_0007: { title: "Birthday Party" },
     });
@@ -19,6 +20,7 @@ describe("parseTitleMap", () => {
         description: "Family trip to the beach",
         tags: ["family", "beach"],
         privacyStatus: "public",
+        playlistId: "PL1234567890",
       },
       mvi_0007: { title: "Birthday Party" },
     });
@@ -54,5 +56,11 @@ describe("parseTitleMap", () => {
     expect(() =>
       parseTitleMap(JSON.stringify({ mov001: { title: "x", privacyStatus: "everyone" } })),
     ).toThrow(/invalid "privacyStatus"/);
+  });
+
+  it("throws when playlistId isn't a string", () => {
+    expect(() => parseTitleMap(JSON.stringify({ mov001: { title: "x", playlistId: 123 } }))).toThrow(
+      /non-string "playlistId"/,
+    );
   });
 });

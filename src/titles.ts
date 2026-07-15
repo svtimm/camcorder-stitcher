@@ -58,11 +58,16 @@ function parseTitleMapEntry(sessionId: string, value: unknown): TitleMapEntry {
     }
   }
 
+  if (entry.playlistId !== undefined && typeof entry.playlistId !== "string") {
+    throw new Error(`Titles file entry "${sessionId}" has a non-string "playlistId"`);
+  }
+
   return {
     title: entry.title,
     description: entry.description as string | undefined,
     tags: entry.tags as string[] | undefined,
     privacyStatus: entry.privacyStatus as PrivacyStatus | undefined,
+    playlistId: entry.playlistId as string | undefined,
   };
 }
 

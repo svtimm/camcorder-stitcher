@@ -96,23 +96,46 @@ pure-vs-I/O way as `stitch.ts`:
 
 - **`src/titles.ts`** (`loadTitleMap`/`parseTitleMap`) — reads and validates
   the JSON file mapping `Session.id` -> `{ title, description?, tags?,
-  privacyStatus? }`. `parseTitleMap` is the pure half (string in, validated
-  `TitleMap` out or throws) and is what `test/titles.test.ts` exercises.
+  privacyStatus?, playlistId? }`. `parseTitleMap` is the pure half (string
+  in, validated `TitleMap` out or throws) and is what `test/titles.test.ts`
+  exercises.
 - **`src/youtube.ts`** — `buildVideoMetadata` (pure: entry + default
   privacy status -> the API request body, unit tested) versus
-  `getAuthorizedClient`/`uploadVideo` (I/O: OAuth "installed app" consent
-  flow over a short-lived loopback HTTP server, credential caching under
-  `~/.config/camcorder-stitcher/`, and the actual `videos.insert` call).
-  There is deliberately **no automated test for real uploads** — unlike
-  the ffmpeg integration test, which can at least self-skip against a
-  locally-installed binary, a real YouTube upload needs a live Google
-  account and burns real quota, so it can't be faked or skipped its way
-  into CI. `test/youtube.test.ts` only covers `buildVideoMetadata`.
+  `getAuthorizedClient`/`uploadVideo`/`addVideoToPlaylist` (I/O: OAuth
+  "installed app" consent flow over a short-lived loopback HTTP server,
+  credential caching under `~/.config/camcorder-stitcher/`, and the actual
+  `videos.insert`/`playlistItems.insert` calls). There is deliberately
+  **no automated test for real uploads or playlist adds** — unlike the
+  ffmpeg integration test, which can at least self-skip against a
+  locally-installed binary, these need a live Google account and burn real
+  quota, so they can't be faked or skipped their way into CI.
+  `test/youtube.test.ts` only covers `buildVideoMetadata`.
 
 `src/cli.ts`'s action loads and validates the title map (if `--titles` was
 passed) before doing any stitching, so a malformed titles file fails fast
-instead of partway through a batch. Uses the minimal
-`youtube.upload` OAuth scope rather than the broader `youtube` scope.
+instead of partway through a batch.
+
+### OAuth scope is computed per run, not fixed
+
+`playlistItems.insert` does **not** accept the `youtube.upload` scope this
+tool otherwise uses (confirmed against `@googleapis/youtube`'s own
+generated JSDoc samples in `node_modules/.../build/v3.d.ts` — it lists
+`youtube`, `youtube.force-ssl`, `youtubepartner`, not `youtube.upload`).
+`videos.insert` accepts `youtube.force-ssl` too, so that's the one extra
+scope needed rather than the much broader `youtube` scope.
+
+`src/cli.ts`'s `computeRequiredScopes` only adds `YOUTUBE_PLAYLIST_SCOPE`
+to the request when a run actually targets a playlist (`--playlist` or any
+title-map entry's `playlistId`) — a playlist-free run stays exactly as
+narrow-scoped as before this feature existed. Because scope is decided
+per-run rather than fixed, `getAuthorizedClient` compares the *cached*
+token's granted `scope` string (Google returns this in the token response
+and it round-trips through the existing credential-cache file) against
+what the current run needs, and transparently re-runs the consent flow if
+the cached grant is too narrow — e.g. a user who authorized uploads-only
+last month adding `--playlist` today. Keep this comparison in mind if you
+add another scope-gated capability: don't hardcode the scope list, extend
+`computeRequiredScopes`'s conditions instead.
 
 One version-pinning detail worth knowing before touching dependencies:
 `google-auth-library` is pinned to the *exact* version (`10.5.0`, not

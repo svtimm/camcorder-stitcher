@@ -137,7 +137,8 @@ metadata:
     "title": "Beach Day 2024",
     "description": "Family trip to the beach",
     "tags": ["family", "beach"],
-    "privacyStatus": "unlisted"
+    "privacyStatus": "unlisted",
+    "playlistId": "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   }
 }
 ```
@@ -146,6 +147,17 @@ Only `title` is required. `privacyStatus` (`private` | `unlisted` | `public`)
 defaults to `--privacy-status` (itself defaulting to `unlisted`) when
 omitted. Sessions the tool detects but that aren't in this file are still
 stitched locally — they're just skipped for upload, with a console note.
+
+`playlistId` adds the uploaded video to that YouTube playlist right after
+upload. You can also pass `--playlist <id>` as a default for every session
+that doesn't set its own `playlistId` — find a playlist's id in its YouTube
+URL (`youtube.com/playlist?list=`**`PLxxxxxxxx...`**`)`.
+
+Using a playlist (either way) means the tool needs a broader OAuth scope
+(`youtube.force-ssl` instead of `youtube.upload`) — if you'd already
+authorized the tool for uploads only, the *first* run that uses a playlist
+will re-open the consent screen once to widen that grant, then cache the
+new token same as before.
 
 You can preview what would be uploaded, with no network calls and no
 stitching, by combining both flags:
